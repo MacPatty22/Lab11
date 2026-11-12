@@ -57,7 +57,7 @@ Time to generate all 50 frames (1000x1000 pixels, max 1000 iterations), measured
 | 20        | 6.0         |
 | 50        | 7.5         |
 
-Graph is named runtime_graph.png to view points plotted
+![Runtime vs number of processes](runtime_graph.png)
 
 ## Discussion
 
