@@ -1,5 +1,9 @@
 *.d
 *.o
 mandel
+mandelmovie
+
 *.jpg
 *.mpg
+
+!mandel.mpg

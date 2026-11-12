@@ -1,12 +1,20 @@
+/*********************************************************************
+* @file jpegrw.h
+* @brief Raw image type and jpeg read/write function declarations
+* @author Mac Patterson
+* @date 11/11/2026
+*********************************************************************/
+
 #ifndef JPEGRW_H
 #define JPEGRW_H
 
 // a struct to represent a raw image
-typedef struct imgRawImage {
-	unsigned int numComponents;
-	unsigned int width;
+typedef struct imgRawImage
+{
+    unsigned int numComponents;
+    unsigned int width;
     unsigned int height;
-	unsigned char* lpData;
+    unsigned char* lpData;
 } imgRawImage;
 
 // reads in jpeg - allocated memory in imgRawImage - to be freed by caller
@@ -20,17 +28,15 @@ imgRawImage* initRawImage(unsigned int width, unsigned int height);
 
 void freeRawImage(imgRawImage* img);
 
+void setImageCOLOR(imgRawImage* image, unsigned int rgb);
 
-void setImageCOLOR(imgRawImage* image,unsigned int rgb);
-
-void setImageRGB(imgRawImage* image,unsigned char red,unsigned char green,
-							 unsigned char blue);
+void setImageRGB(imgRawImage* image, unsigned char red, unsigned char green,
+                 unsigned char blue);
 
 void setPixelRGB(imgRawImage* image, unsigned int x, unsigned int y,
-							 unsigned char red,unsigned char green,
-							 unsigned char blue);
-							 
+                 unsigned char red, unsigned char green,
+                 unsigned char blue);
+
 void setPixelCOLOR(imgRawImage* image, unsigned int x, unsigned int y, unsigned int rgb);
 
-
-#endif  /* Compile guard */
+#endif  //Compile guard 
