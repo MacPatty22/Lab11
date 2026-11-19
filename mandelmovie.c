@@ -1,9 +1,8 @@
 /*********************************************************************
 * @file mandelmovie.c
-* @brief Generates a series of Mandelbrot frames in parallel by forking child processes that each exec the mandel program
+* @brief Generates a series of Mandelbrot frames in parallel by forking child processes that each exec the mandel program.
 * @author Mac Patterson
-* @date 11/11/2026
-* @note CPE-2600 Lab 11 Multiprocessing, Section XXX
+* @date 11/19/2026
 *********************************************************************/
 
 #include <stdio.h>
@@ -31,13 +30,18 @@
 #define DEFAULT_HEIGHT  1000
 #define DEFAULT_MAX     1000
 #define DEFAULT_PREFIX  "mandel"
+#define DEFAULT_THREADS 1
+
+// Allowed range for the -t thread count (mandel enforces the same range)
+#define MIN_THREADS 1
+#define MAX_THREADS 20
 
 // local routines
 static void show_help(void);
 static int reap_one_child(void);
 static pid_t launch_frame(int frame, double xcenter, double ycenter,
                           double scale, int width, int height, int max,
-                          const char *prefix);
+                          int nthreads, const char *prefix);
 
 
 int main(int argc, char *argv[])
@@ -55,9 +59,10 @@ int main(int argc, char *argv[])
     int width = DEFAULT_WIDTH;
     int height = DEFAULT_HEIGHT;
     int max = DEFAULT_MAX;
+    int nthreads = DEFAULT_THREADS;   // Lab 12: threads each mandel uses per frame
     const char *prefix = DEFAULT_PREFIX;
 
-    while ((c = getopt(argc, argv, "p:n:x:y:s:z:W:H:m:o:h")) != -1)
+    while ((c = getopt(argc, argv, "p:n:t:x:y:s:z:W:H:m:o:h")) != -1)
     {
         switch (c)
         {
@@ -66,6 +71,9 @@ int main(int argc, char *argv[])
                 break;
             case 'n':
                 nframes = atoi(optarg);
+                break;
+            case 't':
+                nthreads = atoi(optarg);
                 break;
             case 'x':
                 xcenter = atof(optarg);
@@ -101,7 +109,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Sanity check everything before forking anything
     if (nframes < 1)
     {
         fprintf(stderr, "mandelmovie: number of frames must be at least 1\n");
@@ -119,14 +126,21 @@ int main(int argc, char *argv[])
                 nprocs, nframes, nframes);
         nprocs = nframes;
     }
+    if (nthreads < MIN_THREADS || nthreads > MAX_THREADS)
+    {
+        // Catch this here so we don't fork 50 children that all fail
+        fprintf(stderr, "mandelmovie: number of threads must be between %d and %d\n",
+                MIN_THREADS, MAX_THREADS);
+        return 1;
+    }
     if (scale <= 0.0 || zoom <= 0.0 || width < 1 || height < 1 || max < 1)
     {
         fprintf(stderr, "mandelmovie: scale, zoom, width, height and max must all be positive\n");
         return 1;
     }
 
-    printf("mandelmovie: %d frames, %d processes, center=(%.15g, %.15g), start scale=%g, zoom=%g\n",
-           nframes, nprocs, xcenter, ycenter, scale, zoom);
+    printf("mandelmovie: %d frames, %d processes, %d threads per frame, center=(%.15g, %.15g), start scale=%g, zoom=%g\n",
+           nframes, nprocs, nthreads, xcenter, ycenter, scale, zoom);
 
     int running = 0;     // children currently alive
     int failures = 0;    // children that did not exit cleanly
@@ -142,11 +156,10 @@ int main(int argc, char *argv[])
         }
 
         pid_t pid = launch_frame(frame, xcenter, ycenter, frame_scale,
-                                 width, height, max, prefix);
+                                 width, height, max, nthreads, prefix);
         if (pid < 0)
         {
-            // fork failed; stop launching but still wait for the
-            // children that are already running
+            // fork failed; stop launching but still wait for the children that are already running
             failures += nframes - frame;
             break;
         }
@@ -178,7 +191,7 @@ int main(int argc, char *argv[])
 
 static pid_t launch_frame(int frame, double xcenter, double ycenter,
                           double scale, int width, int height, int max,
-                          const char *prefix)
+                          int nthreads, const char *prefix)
 {
     // Build all of the argument strings before forking so the child
     // has nothing to do but exec
@@ -188,6 +201,7 @@ static pid_t launch_frame(int frame, double xcenter, double ycenter,
     char wbuf[ARG_BUF_SIZE];
     char hbuf[ARG_BUF_SIZE];
     char mbuf[ARG_BUF_SIZE];
+    char tbuf[ARG_BUF_SIZE];
     char outbuf[256];
 
     // %.17g keeps full double precision, which matters once the
@@ -198,6 +212,7 @@ static pid_t launch_frame(int frame, double xcenter, double ycenter,
     snprintf(wbuf, sizeof(wbuf), "%d", width);
     snprintf(hbuf, sizeof(hbuf), "%d", height);
     snprintf(mbuf, sizeof(mbuf), "%d", max);
+    snprintf(tbuf, sizeof(tbuf), "%d", nthreads);
     snprintf(outbuf, sizeof(outbuf), "%s%d.jpg", prefix, frame);
 
     // Flush so buffered parent output is not duplicated into the child
@@ -220,6 +235,7 @@ static pid_t launch_frame(int frame, double xcenter, double ycenter,
               "-W", wbuf,
               "-H", hbuf,
               "-m", mbuf,
+              "-t", tbuf,
               "-o", outbuf,
               (char *)NULL);
 
@@ -264,6 +280,8 @@ static void show_help(void)
     printf("Where options are:\n");
     printf("-p <procs>   Number of child processes to run at once. (default=%d)\n", DEFAULT_PROCS);
     printf("-n <frames>  Number of frames to generate. (default=%d)\n", DEFAULT_FRAMES);
+    printf("-t <threads> Threads each mandel uses per frame, %d-%d. (default=%d)\n",
+           MIN_THREADS, MAX_THREADS, DEFAULT_THREADS);
     printf("-x <coord>   X coordinate of the zoom center. (default=%.15g)\n", DEFAULT_X);
     printf("-y <coord>   Y coordinate of the zoom center. (default=%.15g)\n", DEFAULT_Y);
     printf("-s <scale>   Starting scale in Mandelbrot coordinates. (default=%g)\n", DEFAULT_SCALE);
@@ -275,6 +293,7 @@ static void show_help(void)
     printf("-h           Show this help text.\n");
     printf("\nExamples:\n");
     printf("mandelmovie -p 4\n");
+    printf("mandelmovie -p 4 -t 4\n");
     printf("mandelmovie -p 10 -n 100 -z 0.9\n");
     printf("mandelmovie -p 2 -x -0.5 -y 0 -s 3 -z 0.85\n\n");
 }

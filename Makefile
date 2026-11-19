@@ -1,40 +1,31 @@
-CC=gcc
-CFLAGS=-c -Wall -g -O2
-LDFLAGS=-ljpeg
+# Makefile for CPE 2600 Lab 12 - Multithreading
+# Author: Mac Patterson
+#
+# make        builds mandel and mandelmovie
+# make clean  removes executables, object files, and generated frames
 
-MANDEL_SOURCES=mandel.c jpegrw.c
-MOVIE_SOURCES=mandelmovie.c
-MANDEL_OBJECTS=$(MANDEL_SOURCES:.c=.o)
-MOVIE_OBJECTS=$(MOVIE_SOURCES:.c=.o)
-ALL_OBJECTS=$(MANDEL_OBJECTS) $(MOVIE_OBJECTS)
+CC=gcc
+CFLAGS=-c -g -Wall -Werror -pthread
+LDFLAGS=-pthread
 
 all: mandel mandelmovie
 
-# pull in dependency info for *existing* .o files
--include $(ALL_OBJECTS:.o=.d)
+# mandel uses pthreads and libjpeg
+mandel: mandel.o jpegrw.o
+	$(CC) $(LDFLAGS) mandel.o jpegrw.o -o mandel -ljpeg
 
-mandel: $(MANDEL_OBJECTS)
-	$(CC) $(MANDEL_OBJECTS) $(LDFLAGS) -o $@
+# mandelmovie only forks and execs mandel, so no extra libraries
+mandelmovie: mandelmovie.o
+	$(CC) mandelmovie.o -o mandelmovie
 
-# mandelmovie only forks/execs mandel, so it does not need libjpeg
-mandelmovie: $(MOVIE_OBJECTS)
-	$(CC) $(MOVIE_OBJECTS) -o $@
+mandel.o: mandel.c jpegrw.h
+	$(CC) $(CFLAGS) mandel.c -o mandel.o
 
-.c.o:
-	$(CC) $(CFLAGS) $< -o $@
-	$(CC) -MM $< > $*.d
+mandelmovie.o: mandelmovie.c
+	$(CC) $(CFLAGS) mandelmovie.c -o mandelmovie.o
 
-# Stitch the frames into a movie. MPEG-1 only allows standard frame
-# rates, so frames are read at 10 fps and output at 25 fps.
-movie: all
-	./mandelmovie -p 4
-	ffmpeg -y -framerate 10 -i mandel%d.jpg -r 25 -q:v 2 mandel.mpg
+jpegrw.o: jpegrw.c jpegrw.h
+	$(CC) $(CFLAGS) jpegrw.c -o jpegrw.o
 
 clean:
-	rm -rf $(ALL_OBJECTS) mandel mandelmovie *.d
-
-# remove generated frames too (keeps mandel.mpg)
-cleanframes:
-	rm -f mandel*.jpg
-
-.PHONY: all clean cleanframes movie
+	rm -f mandel mandelmovie *.o *.jpg
